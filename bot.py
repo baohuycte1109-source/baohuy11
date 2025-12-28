@@ -1,26 +1,28 @@
 import time
 import asyncio
 import aiohttp
+import logging
+import os
 from telegram import Update
 from telegram.ext import (
     ApplicationBuilder,
     CommandHandler,
-    MessageHandler,
     ContextTypes,
-    filters
+    filters,
 )
 
-from keep_alive import keep_alive
-
 # ================= CẤU HÌNH =================
-BOT_TOKEN = "8080338995:AAHitAzhTUUb1XL0LB44BiJmOCgulA4fx38"  # Thay bằng token bot của bạn
+BOT_TOKEN = os.getenv("8080338995:AAHitAzhTUUb1XL0LB44BiJmOCgulA4fx38")  # Thay bằng token bot hoặc biến môi trường
 ADMINS = [5736655322]           # Thay bằng user_id admin
 AUTO_JOBS = {}
 USER_COOLDOWN = {}             # Lưu last_time của từng user
 BUFF_INTERVAL = 900            # 15 phút = 900 giây
 
-# ================= Keep Alive =================
-keep_alive()  # Giữ bot online
+# ================= Logging =================
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s"
+)
 
 # ================= Kiểm tra admin =================
 def is_admin(user_id):
@@ -115,8 +117,10 @@ async def buff(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     USER_COOLDOWN[user_id] = now
-    await update.message.reply_text("⏳ Chờ 20 giây để buff...")
-    await asyncio.sleep(20)
+    msg = await update.message.reply_text("⏳ Chờ 20 giây để buff...")
+    for i in range(20):
+        await asyncio.sleep(1)
+        await msg.edit_text(f"⏳ Chờ {20-i} giây để buff...")
 
     try:
         data = await call_buff_api(username)
@@ -126,16 +130,16 @@ async def buff(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ================= AUTO BUFF JOB (chỉ admin) =================
 async def auto_buff_job(context: ContextTypes.DEFAULT_TYPE):
-    job_data = context.job.data
-    username = job_data["username"]
-    chat_id = job_data["chat_id"]
-    print(f"[AUTO BUFF] Bắt đầu buff @{username} cho chat_id {chat_id}")
+    job = context.job
+    username = job.data["username"]
+    chat_id = job.data["chat_id"]
+    logging.info(f"[AUTO BUFF] Bắt đầu buff @{username} cho chat_id {chat_id}")
 
     try:
         data = await call_buff_api(username)
         await context.bot.send_message(chat_id=chat_id, text=format_result(data))
     except Exception as e:
-        print(f"[AUTO BUFF] Lỗi: {e}")
+        logging.error(f"[AUTO BUFF] Lỗi: {e}")
         await context.bot.send_message(chat_id=chat_id, text=f"❌ Lỗi auto buff: {e}")
 
 # ================= /autobuff (chỉ admin) =================
@@ -154,6 +158,9 @@ async def autobuff(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     try:
         interval = int(context.args[1])
+        if interval < 60:
+            await update.message.reply_text("⚠️ Interval quá nhỏ, tối thiểu là 60 giây.")
+            return
     except ValueError:
         await update.message.reply_text("❌ Thời gian phải là số (giây)")
         return
@@ -163,7 +170,7 @@ async def autobuff(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     job = context.job_queue.run_repeating(
-        auto_buff_job,
+        callback=auto_buff_job,
         interval=interval,
         first=0,
         data={"username": username, "chat_id": chat_id},
@@ -220,9 +227,9 @@ def main():
     app.add_handler(CommandHandler("listbuff", listbuff))
     app.add_handler(CommandHandler("adm", adm))
     app.add_handler(CommandHandler("addadmin", addadmin))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, lambda u, c: None))
+    app.add_handler(filters.TEXT & ~filters.COMMAND, lambda u, c: None)  # bỏ qua tin nhắn text
 
-    print("🤖 Bot đang chạy...")
+    logging.info("🤖 Bot đang chạy...")
     app.run_polling()
 
 if __name__ == "__main__":
