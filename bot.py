@@ -49,7 +49,7 @@ async def call_buff_api_check(username: str):
         session = aiohttp.ClientSession()
     url = f"https://abcdxyz310107.x10.mx/apifl.php?username={username}"
     try:
-        async with session.get(url, timeout=15) as response:
+        async with session.get(url, timeout=35) as response:
             response.raise_for_status()
             data = await response.json()
             if data.get("success") and "followers_now" in data:
