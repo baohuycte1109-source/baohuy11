@@ -43,7 +43,7 @@ async def call_buff_api(username: str):
     if session is None:
         session = aiohttp.ClientSession()
     url = f"https://abcdxyz310107.x10.mx/apifl.php?username={username}"
-    async with session.get(url, timeout=15) as response:
+    async with session.get(url, timeout=30) as response:
         response.raise_for_status()
         return await response.json()
 
