@@ -43,7 +43,7 @@ async def call_buff_api(username: str):
     if session is None:
         session = aiohttp.ClientSession()
     url = f"https://abcdxyz310107.x10.mx/apifl.php?username={username}"
-    async with session.get(url, timeout=30) as response:
+    async with session.get(url, timeout=15) as response:
         response.raise_for_status()
         return await response.json()
 
@@ -86,17 +86,22 @@ async def buff(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(f"⏳ Chờ {API_DELAY} giây để buff...")
     asyncio.create_task(run_buff_task(username, update))
 
-# ================= AUTO BUFF JOB =================
-async def auto_buff_job(context):
-    job_data = context.job.data
-    username = job_data["username"]
-    chat_id = job_data["chat_id"]
-    await asyncio.sleep(API_DELAY)  # Delay 30 giây trước khi gọi API
+# ================= TASK CHẠY AUTO BUFF =================
+async def run_auto_buff(username, chat_id, context):
+    await asyncio.sleep(API_DELAY)
     try:
         data = await call_buff_api(username)
         await context.bot.send_message(chat_id=chat_id, text=format_result(data))
     except Exception as e:
         await context.bot.send_message(chat_id=chat_id, text=f"❌ Lỗi auto buff: {e}")
+
+# ================= AUTO BUFF JOB =================
+async def auto_buff_job(context):
+    job_data = context.job.data
+    username = job_data["username"]
+    chat_id = job_data["chat_id"]
+    # Tạo task riêng để delay mà không block JobQueue
+    asyncio.create_task(run_auto_buff(username, chat_id, context))
 
 # ================= /autobuff =================
 async def autobuff(update: Update, context: ContextTypes.DEFAULT_TYPE):
